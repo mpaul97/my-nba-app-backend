@@ -3,10 +3,13 @@ from dotenv import load_dotenv
 import os
 import json
 
-from nba_api.stats.static.players import find_players_by_first_name, find_players_by_last_name, find_players_by_full_name
+from nba_api.stats.static.players import find_players_by_first_name, find_players_by_last_name, find_players_by_full_name, get_players
 from nba_api.stats.endpoints import playercareerstats, playergamelog
 
 load_dotenv()
+
+def get_all_players():
+    return get_players()
 
 def find_players(name: str):
     players = find_players_by_first_name(f"{name}")
@@ -33,5 +36,6 @@ def get_gamelogs(player_id: int):
     return data
 
 if __name__=="__main__":
+    json.dump(get_all_players(), open("dummy_all_players.json", "w"), indent=4)
     # json.dump(find_players("luka"), open("dummy_players.json", "w"), indent=4)
-    json.dump(get_gamelogs(1629029), open("dummy_player_data.json", "w"), indent=4)
+    # json.dump(get_gamelogs(1629029), open("dummy_player_data.json", "w"), indent=4)
