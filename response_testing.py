@@ -8,9 +8,9 @@ load_dotenv()
 
 DEBUG_MODE = os.environ['DEBUG_MODE']=="True"
 
-DOMAIN=os.environ['DEV_DOMAIN'] if DEBUG_MODE else os.environ['PROD_DOMAIN']
+# DOMAIN=os.environ['DEV_DOMAIN'] if DEBUG_MODE else os.environ['PROD_DOMAIN']
 ROOT_PATH=os.environ['ROOT_PATH']
 
-res = requests.get(f"{DOMAIN}/{ROOT_PATH}/find_players/luka")
+res = requests.get(f"{ROOT_PATH}/find_players/luka")
 
 print(res.text)
