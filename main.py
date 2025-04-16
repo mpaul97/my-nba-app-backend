@@ -1,13 +1,20 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from datetime import datetime
 from dotenv import load_dotenv
 import os
 from flask_cors import CORS, cross_origin
+import logging
+import json
+
+import logging_config
+from bets import Bets
 
 from nba_api.stats.static.players import find_players_by_first_name, find_players_by_last_name, find_players_by_full_name, get_players
 from nba_api.stats.endpoints import playercareerstats, playergamelog
 
 load_dotenv()
+
+logging_config.setup_logging()
 
 DEBUG_MODE = os.environ['DEBUG_MODE']=="True"
 
@@ -46,6 +53,17 @@ def get_gamelogs(player_id: int):
 @app.route(f'/{ROOT_PATH}/get_all_players', methods=['GET'])
 def get_all_players():
     return get_players()
+
+@app.route(f'/{ROOT_PATH}/post_bet_info', methods=['GET', 'POST'])
+def post_bet_info():
+    data = request.get_json()
+    bets = Bets(
+        player=data['player'],
+        bet_type=data['bet_type'],
+        number_value=data['number_value'],
+        stat=data['stat']
+    )
+    return bets.get_data()
 
 if __name__=="__main__":
     app.run(debug=True)
