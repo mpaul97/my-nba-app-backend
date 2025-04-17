@@ -36,10 +36,6 @@ INITIAL_VALUES = {
     }
 }
 
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'
-}
-
 class Bets:
     def __init__(
         self, player: dict, bet_type: dict, number_value: float, stat: dict, 
@@ -234,18 +230,19 @@ class Bets:
         }
         return json.dumps(self.res, indent=4)
     
-# if __name__=="__main__":
-#     # bets = Bets(
-#     #     player=INITIAL_VALUES['player'],
-#     #     bet_type=INITIAL_VALUES['bet_type']['name'],
-#     #     number_value=INITIAL_VALUES['number_value'],
-#     #     stat=INITIAL_VALUES['stat']['name'],
-#     #     save=True
-#     # )
-#     bets = Bets(
-#         player=INITIAL_VALUES['player'],
-#         bet_type=INITIAL_VALUES['bet_type']['name'],
-#         number_value=INITIAL_VALUES['number_value'],
-#         stat=INITIAL_VALUES['stat']['name'],
-#         load=True
-#     )
+if __name__=="__main__":
+    # bets = Bets(
+    #     player=INITIAL_VALUES['player'],
+    #     bet_type=INITIAL_VALUES['bet_type'],
+    #     number_value=INITIAL_VALUES['number_value'],
+    #     stat=INITIAL_VALUES['stat'],
+    #     save=True
+    # )
+    bets = Bets(
+        player=INITIAL_VALUES['player'],
+        bet_type=INITIAL_VALUES['bet_type'],
+        number_value=INITIAL_VALUES['number_value'],
+        stat=INITIAL_VALUES['stat'],
+        load=True
+    )
+    json.dump(bets.get_data(), open("dummy_bets_info_response.json", "w"))
