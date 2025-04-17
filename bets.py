@@ -235,7 +235,7 @@ class Bets:
                 'data': list(df[self.stat].values),
             }
         }
-        return json.dumps(self.res, indent=4)
+        return self.res
     
 # if __name__=="__main__":
 #     # bets = Bets(
@@ -252,4 +252,4 @@ class Bets:
 #         stat=INITIAL_VALUES['stat'],
 #         load=True
 #     )
-#     json.dump(bets.get_data(), open("dummy_bets_info_response.json", "w"))
+#     json.dump(bets.get_data(), open("dummy_bets_info_response.json", "w"), indent=4)
