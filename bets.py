@@ -215,6 +215,9 @@ class Bets:
             logging.error("Error getting season_rank_post")
             return None
     def get_data(self):
+        df: pd.DataFrame = self.all_gamelogs.copy()[['GAME_DATE', self.stat]].head(10)
+        df['GAME_DATE'] = df['GAME_DATE'].apply(str)
+        df[self.stat] = df[self.stat].apply(float)
         # construct response JSON (dict)
         self.res = {
             'playoffs_started': self.playoffs_started,
@@ -227,22 +230,26 @@ class Bets:
             'career_avg_post': self.get_season_avg_post(),
             'season_rank': self.get_season_rank(),
             'season_rank_post': self.get_season_rank_post(),
+            'last_10_stats': {
+                'labels': list(df['GAME_DATE'].values),
+                'data': list(df[self.stat].values),
+            }
         }
         return json.dumps(self.res, indent=4)
     
-if __name__=="__main__":
-    # bets = Bets(
-    #     player=INITIAL_VALUES['player'],
-    #     bet_type=INITIAL_VALUES['bet_type'],
-    #     number_value=INITIAL_VALUES['number_value'],
-    #     stat=INITIAL_VALUES['stat'],
-    #     save=True
-    # )
-    bets = Bets(
-        player=INITIAL_VALUES['player'],
-        bet_type=INITIAL_VALUES['bet_type'],
-        number_value=INITIAL_VALUES['number_value'],
-        stat=INITIAL_VALUES['stat'],
-        load=True
-    )
-    json.dump(bets.get_data(), open("dummy_bets_info_response.json", "w"))
+# if __name__=="__main__":
+#     # bets = Bets(
+#     #     player=INITIAL_VALUES['player'],
+#     #     bet_type=INITIAL_VALUES['bet_type'],
+#     #     number_value=INITIAL_VALUES['number_value'],
+#     #     stat=INITIAL_VALUES['stat'],
+#     #     save=True
+#     # )
+#     bets = Bets(
+#         player=INITIAL_VALUES['player'],
+#         bet_type=INITIAL_VALUES['bet_type'],
+#         number_value=INITIAL_VALUES['number_value'],
+#         stat=INITIAL_VALUES['stat'],
+#         load=True
+#     )
+#     json.dump(bets.get_data(), open("dummy_bets_info_response.json", "w"))
