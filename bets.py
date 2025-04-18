@@ -215,9 +215,8 @@ class Bets:
             logging.error("Error getting season_rank_post")
             return None
     def get_data(self):
-        df: pd.DataFrame = self.all_gamelogs.copy()[['GAME_DATE', self.stat]].head(10)
-        df['GAME_DATE'] = df['GAME_DATE'].apply(str)
-        df[self.stat] = df[self.stat].apply(float)
+        df: pd.DataFrame = self.all_gamelogs.copy()[['GAME_DATE', 'MATCHUP', self.stat, 'MIN']].head(10)
+        df[f"{self.stat}_PER_MIN"] = df.apply(lambda x: round(x[self.stat]/x['MIN'], 2), axis=1)
         # construct response JSON (dict)
         self.res = {
             'playoffs_started': self.playoffs_started,
@@ -230,10 +229,7 @@ class Bets:
             'career_avg_post': self.get_season_avg_post(),
             'season_rank': self.get_season_rank(),
             'season_rank_post': self.get_season_rank_post(),
-            'last_10_stats': {
-                'labels': list(df['GAME_DATE'].values),
-                'data': list(df[self.stat].values),
-            }
+            'last_10_stats': json.loads(df.to_json(orient='records'))
         }
         return self.res
     
