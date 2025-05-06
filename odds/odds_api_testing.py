@@ -18,3 +18,5 @@ res = requests.get(
 )
 
 json.dump(res.json(), open("responses/historical_nba_odds_2025-04-20.json", "w"), indent=4)
+
+# nothing
