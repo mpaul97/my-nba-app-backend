@@ -146,7 +146,7 @@ class Bets:
             if self.bet_type == 'over':
                 return len(df[(df[self.stat]>self.number_value)])
             elif self.bet_type == 'under':
-                return len(df[(df[self.stat]>self.number_value)])
+                return len(df[(df[self.stat]<self.number_value)])
             elif self.bet_type == 'at least':
                 return len(df[(df[self.stat]>=self.number_value)])
             return None
