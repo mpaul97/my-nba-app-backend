@@ -2,6 +2,8 @@
 *.json
 *.log
 
+__pycache__/
+
 data/
 
 odds/responses/

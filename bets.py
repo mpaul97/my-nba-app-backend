@@ -234,18 +234,18 @@ class Bets:
         return self.res
     
 # if __name__=="__main__":
-#     # bets = Bets(
-#     #     player=INITIAL_VALUES['player'],
-#     #     bet_type=INITIAL_VALUES['bet_type'],
-#     #     number_value=INITIAL_VALUES['number_value'],
-#     #     stat=INITIAL_VALUES['stat'],
-#     #     save=True
-#     # )
 #     bets = Bets(
 #         player=INITIAL_VALUES['player'],
 #         bet_type=INITIAL_VALUES['bet_type'],
 #         number_value=INITIAL_VALUES['number_value'],
 #         stat=INITIAL_VALUES['stat'],
-#         load=True
+#         save=True
 #     )
-#     json.dump(bets.get_data(), open("dummy_bets_info_response.json", "w"), indent=4)
+    # bets = Bets(
+    #     player=INITIAL_VALUES['player'],
+    #     bet_type=INITIAL_VALUES['bet_type'],
+    #     number_value=INITIAL_VALUES['number_value'],
+    #     stat=INITIAL_VALUES['stat'],
+    #     load=True
+    # )
+    # json.dump(bets.get_data(), open("dummy_bets_info_response.json", "w"), indent=4)
