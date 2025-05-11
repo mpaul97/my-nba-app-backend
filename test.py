@@ -1,11 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 import json
 import pandas as pd
 
 from nba_api.stats.static.players import find_players_by_first_name, find_players_by_last_name, find_players_by_full_name, get_players
-from nba_api.stats.endpoints import playercareerstats, playergamelog, playergamelogs
+from nba_api.stats.endpoints import playercareerstats, playergamelog, scoreboardv2, boxscoreplayertrackv3, boxscoretraditionalv3
 
 load_dotenv()
 
@@ -61,9 +61,18 @@ def get_gamelogs_frame(player_id: int):
     print(df)
     return
 
+def get_boxscores(date):
+    games = scoreboardv2.ScoreboardV2("0", "2025-05-07", "00")
+    df: pd.DataFrame = games.get_data_frames()[0]
+    ids: list = list(df['GAME_ID'].values)
+    for id in ids:
+        print(boxscoretraditionalv3.BoxScoreTraditionalV3(id).get_data_frames()[0])
+    return
+
 if __name__=="__main__":
     # json.dump(get_all_players(), open("dummy_all_players.json", "w"), indent=4)
     # json.dump(find_players("luka"), open("dummy_players.json", "w"), indent=4)
     # json.dump(get_gamelogs(1629029), open("dummy_player_data.json", "w"), indent=4)
     # get_gamelogs_frame(1629029)
-    print(playergamelog.PlayerGameLog(player_id=1629029, date_to_nullable=datetime.now().date()).get_data_frames())
+    # print(playergamelog.PlayerGameLog(player_id=1629029, date_to_nullable=datetime.now().date()).get_data_frames())
+    get_boxscores(date=datetime.now()-timedelta(days=1))
