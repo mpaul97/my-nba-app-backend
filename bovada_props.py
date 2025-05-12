@@ -109,20 +109,12 @@ class Props:
     def get_bet_hits(self):
         outcomes = []
         po: PropObj
-        for index, po in enumerate(self.all_props):
-            # pprint.pp(po.item)
-            self.print_progress_bar(index, len(self.all_props))
+        for po in self.all_props:
             try:
                 try:
                     df: pd.DataFrame = self.boxscores[po.date.date()]
                 except IndexError:
-                    print("No frame found!")
-                    # print(f"Boxscore not fround for exact prop date, trying day before: {po.date.date()}")
-                    # df: pd.DataFrame = self.get_boxscore_data(
-                    #     data=[],
-                    #     dates=[po.date-timedelta(days=1)],
-                    #     just_frame=True
-                    # )
+                    logging.error("No frame found!")
                 df: pd.DataFrame = df[df['personId']==po.player_id]
                 game_vals = df[BOVADA_BOXSCORE_MAPPINGS[po.stat]].values[0]
                 actual_total = int(sum(game_vals))
@@ -130,13 +122,10 @@ class Props:
                 new_item['actual_total'] = actual_total
                 if actual_total < po.line:
                     new_item['outcome'] = 'UNDER'
-                    # print(f"{po.stat} was UNDER => {actual_total} < {po.line}")
                 elif actual_total > po.line:
                     new_item['outcome'] = 'OVER'
-                    # print(f"{po.stat} was OVER => {actual_total} > {po.line}")
                 else:
                     new_item['outcome'] = 'EVEN'
-                    # print(f"{po.stat} was EQUAL => {actual_total} = {po.line}")
                 outcomes.append(new_item)
             except Exception as e:
                 logging.error(f"Error getting player/boxscore: {po.date.date(), po.player_name}, {e}")
