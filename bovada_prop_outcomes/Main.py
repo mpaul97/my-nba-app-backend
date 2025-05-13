@@ -32,16 +32,17 @@ class Main:
     def __init__(self):
         self.data_dir: str = "./data/"
         os.makedirs(self.data_dir, exist_ok=True)
-        self.download_data()
+        # self.download_data()
         self.found_players = {}
         return
     def download_data(self):
         res = s3.list_objects_v2(Bucket=BUCKET_NAME)
         for object in res['Contents']:
             s3_key = object['Key']
-            os.makedirs(f"{self.data_dir}/{os.path.dirname(s3_key)}", exist_ok=True)
-            print(object['Key'])
-            # s3.download_file(BUCKET_NAME, object['Key'], object['Key'])
+            _dir: str = os.path.dirname(s3_key)
+            os.makedirs(f"{self.data_dir}/{_dir}", exist_ok=True)
+            fn: str = os.path.basename(object['Key'])
+            s3.download_file(BUCKET_NAME, object['Key'], f"./{self.data_dir}/{_dir}/{fn}")
         return
     def get_player_id(self, player_name: str, league_type: str):
         try:
@@ -102,6 +103,11 @@ class Main:
                         frames[league_type] = pd.concat([frames[league_type], df])
                     else:
                         frames[league_type] = df
+                    # delete file
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        logging.error(f"Error removing file: {file_path}")
         for key in frames:
             os.makedirs("./clean_data/", exist_ok=True)
             df: pd.DataFrame = frames[key]
@@ -109,7 +115,7 @@ class Main:
             df = df.sort_values(by=['date_collected'], ascending=False)
             data = json.loads(df.to_json(orient="records"))
             json.dump(data, open(f"clean_data/all_player_props_{key}.json", "w"), indent=4)
-
+        # clean data directory
         return
 # END Main
 
