@@ -8,6 +8,8 @@ import time
 import logging
 from dotenv import load_dotenv
 import boto3
+import shutil
+from io import StringIO
 
 from nba_api.stats.static.players import find_players_by_full_name
 
@@ -32,17 +34,59 @@ class Main:
     def __init__(self):
         self.data_dir: str = "./data/"
         os.makedirs(self.data_dir, exist_ok=True)
-        # self.download_data()
+        self.clean_data_dir: str = "./clean_data/"
+        os.makedirs(self.clean_data_dir, exist_ok=True)
+        self.download_data()
         self.found_players = {}
         return
     def download_data(self):
+        logs: dict[pd.DataFrame] = {}
         res = s3.list_objects_v2(Bucket=BUCKET_NAME)
         for object in res['Contents']:
             s3_key = object['Key']
             _dir: str = os.path.dirname(s3_key)
-            os.makedirs(f"{self.data_dir}/{_dir}", exist_ok=True)
-            fn: str = os.path.basename(object['Key'])
-            s3.download_file(BUCKET_NAME, object['Key'], f"./{self.data_dir}/{_dir}/{fn}")
+            if re.search(r"all_bets.+\.json", s3_key):
+                pass
+            #     os.makedirs(f"{self.data_dir}/{_dir}", exist_ok=True)
+            #     fn: str = os.path.basename(object['Key'])
+            #     s3.download_file(BUCKET_NAME, object['Key'], f"./{self.data_dir}/{_dir}/{fn}")
+            elif re.search(r".+.csv", s3_key):
+                league_type = str(os.path.dirname(s3_key)).split("/")[-1]
+                csv_obj = s3.get_object(Bucket=BUCKET_NAME, Key=s3_key)
+                body = csv_obj['Body']
+                csv_string = body.read().decode('utf-8')
+                df: pd.DataFrame = pd.read_csv(StringIO(csv_string))
+                df.insert(0, 'path', _dir)
+                if league_type in logs:
+                    logs[league_type] = pd.concat([logs[league_type], df])
+                else:
+                    logs[league_type] = df
+        for key in logs:
+            new_df: pd.DataFrame = logs[key].drop_duplicates()
+            new_df.insert(0, 'bovada_date', new_df['link'].apply(lambda x: datetime.strptime(x.split("-")[-1], "%Y%m%d%H%M")))
+            new_df = new_df.sort_values(by=['bovada_date'])
+            new_df.to_csv(f"{self.clean_data_dir}all_game_logs_{key}.csv", index=False)
+        return
+    def delete_data_dir(self):
+        """Deletes all files and subdirectories within the given directory path.
+
+        Args:
+            dir_path: The path to the directory to be cleared.
+        """
+        if not os.path.exists(self.data_dir):
+            print(f"Directory not found: {self.data_dir}")
+            return
+
+        for item in os.listdir(self.data_dir):
+            item_path = os.path.join(self.data_dir, item)
+            try:
+                if os.path.isfile(item_path) or os.path.islink(item_path):
+                    os.unlink(item_path)  # Remove files and symbolic links
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)  # Remove directories and their contents
+            except Exception as e:
+                print(f"Error deleting {item_path}: {e}")
+        os.rmdir(self.data_dir)
         return
     def get_player_id(self, player_name: str, league_type: str):
         try:
@@ -103,21 +147,23 @@ class Main:
                         frames[league_type] = pd.concat([frames[league_type], df])
                     else:
                         frames[league_type] = df
-                    # delete file
-                    try:
-                        os.remove(file_path)
-                    except Exception as e:
-                        logging.error(f"Error removing file: {file_path}")
         for key in frames:
-            os.makedirs("./clean_data/", exist_ok=True)
             df: pd.DataFrame = frames[key]
-            # df = df.drop_duplicates(subset=['player_name', 'stat'], keep='last')
             df = df.sort_values(by=['date_collected'], ascending=False)
             data = json.loads(df.to_json(orient="records"))
-            json.dump(data, open(f"clean_data/all_player_props_{key}.json", "w"), indent=4)
-        # clean data directory
+            json.dump(data, open(f"{self.clean_data_dir}all_player_props_{key}.json", "w"), indent=4)
+        # clear and delete data/
+        self.delete_data_dir()
         return
 # END Main
 
 if __name__=="__main__":
-    Main()
+    # Main()
+    parsed_logs = []
+    for fn in os.listdir("./clean_data/"):
+        if re.search(r".+.csv", fn):
+            temp_df: pd.DataFrame = pd.read_csv(f"./clean_data/{fn}")
+            parsed_logs.append(temp_df[['bovada_date', 'path', 'key']])
+    df = pd.concat(parsed_logs)
+    df = df.sort_values(by=['bovada_date'])
+    df.to_csv(f"./clean_data/parsed_logs.csv", index=False)
