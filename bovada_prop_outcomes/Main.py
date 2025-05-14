@@ -47,9 +47,9 @@ class Main:
             _dir: str = os.path.dirname(s3_key)
             if re.search(r"all_bets.+\.json", s3_key):
                 pass
-            #     os.makedirs(f"{self.data_dir}/{_dir}", exist_ok=True)
-            #     fn: str = os.path.basename(object['Key'])
-            #     s3.download_file(BUCKET_NAME, object['Key'], f"./{self.data_dir}/{_dir}/{fn}")
+                os.makedirs(f"{self.data_dir}/{_dir}", exist_ok=True)
+                fn: str = os.path.basename(object['Key'])
+                s3.download_file(BUCKET_NAME, object['Key'], f"./{self.data_dir}/{_dir}/{fn}")
             elif re.search(r".+.csv", s3_key):
                 league_type = str(os.path.dirname(s3_key)).split("/")[-1]
                 csv_obj = s3.get_object(Bucket=BUCKET_NAME, Key=s3_key)
@@ -87,6 +87,16 @@ class Main:
             except Exception as e:
                 print(f"Error deleting {item_path}: {e}")
         os.rmdir(self.data_dir)
+        return
+    def create_parsed_log(self):
+        parsed_logs = []
+        for fn in os.listdir(self.clean_data_dir):
+            if re.search(r".+.csv", fn):
+                temp_df: pd.DataFrame = pd.read_csv(f"{self.clean_data_dir}{fn}")
+                parsed_logs.append(temp_df[['bovada_date', 'path', 'key']])
+        df = pd.concat(parsed_logs)
+        df = df.sort_values(by=['bovada_date'])
+        df.to_csv(f"{self.clean_data_dir}all_parsed_logs.csv", index=False)
         return
     def get_player_id(self, player_name: str, league_type: str):
         try:
@@ -152,18 +162,12 @@ class Main:
             df = df.sort_values(by=['date_collected'], ascending=False)
             data = json.loads(df.to_json(orient="records"))
             json.dump(data, open(f"{self.clean_data_dir}all_player_props_{key}.json", "w"), indent=4)
+        # create download/parsed log
+        self.create_parsed_log()
         # clear and delete data/
         self.delete_data_dir()
         return
 # END Main
 
 if __name__=="__main__":
-    # Main()
-    parsed_logs = []
-    for fn in os.listdir("./clean_data/"):
-        if re.search(r".+.csv", fn):
-            temp_df: pd.DataFrame = pd.read_csv(f"./clean_data/{fn}")
-            parsed_logs.append(temp_df[['bovada_date', 'path', 'key']])
-    df = pd.concat(parsed_logs)
-    df = df.sort_values(by=['bovada_date'])
-    df.to_csv(f"./clean_data/parsed_logs.csv", index=False)
+    Main().run()
