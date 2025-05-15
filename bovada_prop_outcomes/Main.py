@@ -15,6 +15,7 @@ from botocore.exceptions import NoCredentialsError
 from nba_api.stats.static.players import find_players_by_full_name
 
 from PlayerProps import PlayerProps
+from BovadaPropOutcomes import BovadaPropOutcomes
 
 from logging_config import setup_logging
 
@@ -73,7 +74,7 @@ class Main:
         except Exception as e:
             logging.error(f"File not found in S3 Bucket: {BUCKET_NAME}, {key}: {e}")
             return None
-    def load_existing_files(self):
+    def load_existing_files(self, write_files: bool = False):
         res = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix="data/")
         try:
             for object in res['Contents']:
@@ -81,7 +82,13 @@ class Main:
                 file = os.path.basename(s3_key)
                 fn, extension = os.path.splitext(file) # filename and extensions split
                 self.s3_loaded_files[fn] = self.get_s3_file(s3_key)
-                logging.info(f"{fn} added to s3_loaded_files dict")
+                if write_files:
+                    logging.info(f"Writing s3_loaded_files[{fn}] to s3_data_dir")
+                    if re.search(r"\.json", extension):
+                        json.dump(self.s3_loaded_files[fn], open(f"{self.s3_data_dir}{file}", "w"), indent=4)
+                    elif re.search(r"\.csv", extension):
+                        self.s3_loaded_files[fn].to_csv(f"{self.s3_data_dir}{file}", index=False)
+                logging.info(f"{file} added to s3_loaded_files dict")
         except KeyError:
             logging.info(f"Folder: data/ is empty in {BUCKET_NAME}. Writing all new data.")
         return
@@ -93,7 +100,7 @@ class Main:
         if _dir not in self.s3_loaded_files['all_parsed_logs']['path'].values: # _dir has not been downloaded
             return True
         return False
-    def download_data(self):
+    def download_bovada_data(self):
         logs: dict[pd.DataFrame] = {}
         res = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix="bovada_data/")
         for index, object in enumerate(res['Contents']):
@@ -102,10 +109,11 @@ class Main:
             _dir: str = os.path.dirname(s3_key).replace("bovada_data/", "")
             if self.s3_parsed_logs_exists(_dir):
                 fn: str = os.path.basename(object['Key'])
-                os.makedirs(f"{self.data_dir}/{_dir}", exist_ok=True)
                 if re.search(r"all_bets.+\.json", s3_key):
+                    os.makedirs(f"{self.data_dir}/{_dir}", exist_ok=True)
                     s3.download_file(BUCKET_NAME, object['Key'], f"{self.data_dir}/{_dir}/{fn}")
                 elif re.search(r".+\.csv", s3_key):
+                    os.makedirs(f"{self.data_dir}/{_dir}", exist_ok=True)
                     league_type = str(os.path.dirname(s3_key)).split("/")[-1]
                     df: pd.DataFrame = self.get_s3_file(s3_key)
                     df.insert(0, 'path', _dir)
@@ -124,26 +132,6 @@ class Main:
             new_df = new_df.sort_values(by=['bovada_date'])
             new_df.to_csv(f"{self.s3_data_dir}all_game_logs_{key}.csv", index=False)
         return True
-    def get_player_id(self, player_name: str, league_type: str):
-        try:
-            if league_type == "nba":
-                if player_name in self.found_players:
-                    print(f"Getting {player_name} from found_players")
-                    return self.found_players[player_name]
-                players = find_players_by_full_name(player_name)
-                if len(players) > 1:
-                    print(f"ALERT found multiple players for {player_name}")
-                    return np.nan
-                player_id = players[0]['id']
-                if player_name not in self.found_players:
-                    self.found_players[player_name] = player_id
-                print(f"Found player_id:{player_id} for {player_name} and added to found_players")
-                time.sleep(0.6)
-                return player_id
-        except Exception as e:
-            print(f"ERROR getting player_id: {e}")
-            return np.nan
-        return np.nan
     def create_parsed_log(self):
         parsed_logs = []
         for fn in os.listdir(self.s3_data_dir):
@@ -156,6 +144,26 @@ class Main:
             logging.info(f"Only getting data for batch range: {list(set(df['path'].values))}")
         df.to_csv(f"{self.s3_data_dir}all_parsed_logs.csv", index=False)
         return
+    def get_player_id(self, player_name: str, league_type: str):
+        try:
+            if league_type == "nba":
+                if player_name in self.found_players:
+                    logging.debug(f"Getting {player_name} from found_players")
+                    return self.found_players[player_name]
+                players = find_players_by_full_name(player_name)
+                if len(players) > 1:
+                    logging.error(f"ALERT found multiple players for {player_name}")
+                    return np.nan
+                player_id = players[0]['id']
+                if player_name not in self.found_players:
+                    self.found_players[player_name] = player_id
+                logging.debug(f"Found player_id:{player_id} for {player_name} and added to found_players")
+                time.sleep(0.6)
+                return player_id
+        except Exception as e:
+            print(f"ERROR getting player_id: {e}")
+            return np.nan
+        return np.nan
     def generate_props(self):
         frames: dict = {}
         for root, _, files in os.walk(self.data_dir):
@@ -170,13 +178,13 @@ class Main:
                     logging.info(f"Getting props from: {fn}")
                     _date, batch_hour_num = os.path.dirname(relative_path), os.path.basename(relative_path)
                     _date: str = re.sub(r"bovada_data\\", "", _date)
+                    _date: str = re.sub(r"bovada_data\/", "", _date)
                     df: pd.DataFrame = PlayerProps(json.load(open(file_path, "r"))).get_props()
                     date_collected: str = f"{_date}T{batch_hour_num}"
                     df.insert(0, 'date_collected', datetime.strptime(date_collected, "%y-%m-%dT%H"))
                     df.insert(1, 'date_collected_string', date_collected)
                     df.insert(1, 'batch_num', batch_hour_num)
-                    # TODO 
-                    # GET player_id for other leagues
+                    # TODO GET player_id for other leagues
                     try: # get games_log for batch, insert link, bovada_date, and player_id to all_players_props
                         games = pd.concat([
                             pd.read_csv(f"{file_dir}/{f}") for f in os.listdir(file_dir) \
@@ -201,6 +209,8 @@ class Main:
             data = json.loads(df.to_json(orient="records"))
             json.dump(data, open(f"{self.s3_data_dir}all_player_props_{key}.json", "w"), indent=4)
         return
+    def get_props(self, league: str):
+        return json.load(open(f"{self.s3_data_dir}all_player_props_{league}.json", "r"))
     def delete_data_dir(self):
         """Deletes all files and subdirectories within the given directory path.
 
@@ -235,10 +245,10 @@ class Main:
         return
     def run(self):
         # load existing files
-        self.load_existing_files()
+        self.load_existing_files(write_files=True)
         # ------------------------------
         # download data
-        has_downloaded = self.download_data()
+        has_downloaded = self.download_bovada_data()
         if has_downloaded:
             # ------------------------------
             # create download/parsed log
@@ -246,6 +256,11 @@ class Main:
             # ------------------------------
             # generate props, store in s3_data/
             self.generate_props()
+            # ------------------------------
+            # generate outcomes
+            # TODO other leagues
+            df: pd.DataFrame = BovadaPropOutcomes(self.get_props('nba')).get_outcomes()
+            df.to_csv(f"{self.s3_data_dir}outcomes_nba.csv", index=False)
             # ------------------------------
             # clear and delete data/
             self.delete_data_dir()
@@ -256,4 +271,8 @@ class Main:
 # END Main
 
 if __name__=="__main__":
-    Main().run()
+    Main().generate_props()
+    # m = Main()
+    # props = m.get_props('nba')
+    # print(set([p['bovada_date'] for p in props]))
+    # # BovadaPropOutcomes()
