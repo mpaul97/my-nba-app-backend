@@ -7,7 +7,7 @@ import logging
 import json
 
 import logging_config
-from bets import Bets
+from bets import Bets, run as bets_run
 
 from nba_api.stats.static.players import find_players_by_first_name, find_players_by_last_name, find_players_by_full_name, get_players
 from nba_api.stats.endpoints import playercareerstats, playergamelog
@@ -57,13 +57,7 @@ def get_all_players():
 @app.route(f'/{ROOT_PATH}/post_bet_info', methods=['GET', 'POST'])
 def post_bet_info():
     data = request.get_json()
-    bets = Bets(
-        player=data['player'],
-        bet_type=data['bet_type'],
-        number_value=data['number_value'],
-        stat=data['stat']
-    )
-    return bets.get_data()
+    return bets_run(data)
 
 if __name__=="__main__":
     app.run(debug=True)

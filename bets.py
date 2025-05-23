@@ -14,40 +14,42 @@ from nba_api.stats.endpoints.playergamelog import PlayerGameLog
 from nba_api.stats.endpoints.playercareerstats import PlayerCareerStats
 
 import logging_config
+from const import BOVADA_PROP_STAT_MAPPINGS
 
 LOCAL_PLAYER_ID = 1629029 # luka
 
 INITIAL_VALUES = {
-    'player': {
-        'first_name': 'LeBron',
-        'full_name': 'LeBron James',
-        'id': 2544,
-        'is_active': True,
-        'last_name': 'James'
+    "id": 1,
+    "bet": {
+        "primary_key": "698f2ecb1a2884175a350206b63b0743176c327fbd80e7a3f6b8a9f8e13f4a3f",
+        "over_odds": -120,
+        "bovada_date": "23/05/2025, 20:00:00",
+        "parent_path": "bovada_data/25-05-22/16/nba",
+        "player_name": "Tyrese Haliburton",
+        "player_id": 1630169,
+        "stat": "total_points_and_rebounds",
+        "under_odds": -110,
+        "team_abbr": "IND",
+        "line_value": 24.5,
+        "date_downloaded": "22/05/2025, 11:37:41",
+        "date_collected": "22/05/2025, 16:00:00",
+        "id": "indiana-pacers-new-york-knicks-202505232000",
+        "date": "2025-05-24T01:00:00.000Z",
+        "bet": "Points and Rebounds"
     },
-    'bet_type': {
-        'name': 'over',
-        'code': 'ov'
-    },
-    'number_value': 20.5,
-    'stat': {
-        'name': 'PTS',
-        'code': 'points'
-    }
+    "user_option": "under"
 }
 
 class Bets:
-    def __init__(
-        self, player: dict, bet_type: dict, number_value: float, stat: dict, 
-        save: bool = False, load: bool = False
-    ):
+    def __init__(self, data: dict, save: bool = False, load: bool = False):
         logging_config.setup_logging()
+        self.data = data
         # bet attributes
-        self.player = player
-        self.bet_type = bet_type['name']
-        self.number_value = number_value
-        self.stat = stat['name']
-        self.player_id: int = player['id']
+        self.bet_type: str = self.data['user_option']
+        self.number_value: float = self.data['bet']['line_value']
+        self.bovada_stat: str = str(self.data['bet']['stat']).upper()
+        self.stats: list[str] = BOVADA_PROP_STAT_MAPPINGS[self.data['bet']['stat']]
+        self.player_id: int = self.data['bet']['player_id']
         self.data_dir: str = "./data/"
         if load: # from local
             self.player_info_df: pd.DataFrame = pd.read_csv(f"{self.data_dir}player_info.csv")
@@ -73,18 +75,18 @@ class Bets:
             # convert + sort by GAME_DATEs
             self.all_gamelogs['GAME_DATE'] = self.all_gamelogs['GAME_DATE'].apply(lambda x: datetime.strptime(x, "%b %d, %Y").date())
             self.all_gamelogs = self.all_gamelogs.sort_values(by=['GAME_DATE'], ascending=False)
+        # create bovada_stat column
+        self.all_gamelogs[self.bovada_stat] = self.all_gamelogs[self.stats].sum(axis=1)
         # save locally for testing
         if save:
             self.write_locally()
         # current season + playoffs started
         self.current_season = self.seasons[-1]
         self.playoffs_started = any((self.all_gamelogs['SEASON']==self.current_season)&(self.all_gamelogs['SEASON_TYPE']=='post'))
+        self.add_bovada_stat_to_frames()
         return
     def write_locally(self):
-        try:
-            os.mkdir(self.data_dir)
-        except Exception:
-            pass
+        os.makedirs(self.data_dir, exist_ok=True)
         self.player_info_df.to_csv(f"{self.data_dir}player_info.csv", index=False)
         for key in self.career_stats:
             self.career_stats[key].to_csv(f"{self.data_dir}{key}.csv", index=False)
@@ -138,17 +140,24 @@ class Bets:
             print(f"No gamelogs found for {self.player_id}")
             return None
     # MAIN functions
+    def add_bovada_stat_to_frames(self):
+        for key in self.career_stats:
+            if 'rankings' not in key:
+                df: pd.DataFrame = self.career_stats[key]
+                df[self.bovada_stat] = df[self.stats].sum(axis=1)
+                self.career_stats[key] = df
+        return
     def get_hits_last_n(self, n: int):
         try:
             df = self.all_gamelogs.copy()
             df = df.sort_values(by=['GAME_DATE'], ascending=False)
             df = df.head(n)
             if self.bet_type == 'over':
-                return len(df[(df[self.stat]>self.number_value)])
+                return len(df[(df[self.bovada_stat]>self.number_value)])
             elif self.bet_type == 'under':
-                return len(df[(df[self.stat]<self.number_value)])
+                return len(df[(df[self.bovada_stat]<self.number_value)])
             elif self.bet_type == 'at least':
-                return len(df[(df[self.stat]>=self.number_value)])
+                return len(df[(df[self.bovada_stat]>=self.number_value)])
             return None
         except Exception:
             logging.error(f"Error getting get_hits_last_n({n})")
@@ -156,18 +165,22 @@ class Bets:
     def get_season_avg(self):
         try:
             df: pd.DataFrame = self.career_stats['season_totals_regular_season']
-            vals = df[df['SEASON_ID'].str.contains(str(self.current_season))][['GP', self.stat]].values[0]
-            _avg = round(vals[1]/vals[0], 2)
-            return _avg
+            vals = df[df['SEASON_ID'].str.contains(str(self.current_season))][['GP', self.bovada_stat]+self.stats].values[0]
+            games_played = vals[0]
+            arr: np.ndarray = (vals/games_played)[1:]
+            attrs = ['total_average_per_game'] + [f"{s}_average_per_game" for s in self.stats]
+            return { a: round(arr[index], 2) for index, a in enumerate(attrs) }
         except Exception:
             logging.error("Error getting season_avg")
             return None
     def get_career_avg(self):
         try:
             df: pd.DataFrame = self.career_stats['career_totals_regular_season']
-            vals = df[['GP', self.stat]].values[0]
-            _avg = round(vals[1]/vals[0], 2)
-            return _avg
+            vals = df[['GP', self.bovada_stat]+self.stats].values[0]
+            games_played = vals[0]
+            arr: np.ndarray = (vals/games_played)[1:]
+            attrs = ['total_average_per_game'] + [f"{s}_average_per_game" for s in self.stats]
+            return { a: round(arr[index], 2) for index, a in enumerate(attrs) }
         except Exception:
             logging.error("Error getting career_avg")
             return None
@@ -175,9 +188,11 @@ class Bets:
         try:
             if self.playoffs_started:
                 df: pd.DataFrame = self.career_stats['season_totals_post_season']
-                vals = df[df['SEASON_ID'].str.contains(str(self.current_season))][['GP', self.stat]].values[0]
-                _avg = round(vals[1]/vals[0], 2)
-                return _avg
+                vals = df[df['SEASON_ID'].str.contains(str(self.current_season))][['GP', self.bovada_stat]+self.stats].values[0]
+                games_played = vals[0]
+                arr: np.ndarray = (vals/games_played)[1:]
+                attrs = ['total_average_per_game'] + [f"{s}_average_per_game" for s in self.stats]
+                return { a: round(arr[index], 2) for index, a in enumerate(attrs) }
             logging.info("season_avg_post - playoffs haven't started yet.")
             return None
         except Exception:
@@ -187,9 +202,11 @@ class Bets:
         try:
             if self.playoffs_started:
                 df: pd.DataFrame = self.career_stats['career_totals_post_season']
-                vals = df[['GP', self.stat]].values[0]
-                _avg = round(vals[1]/vals[0], 2)
-                return _avg
+                vals = df[['GP', self.bovada_stat]+self.stats].values[0]
+                games_played = vals[0]
+                arr: np.ndarray = (vals/games_played)[1:]
+                attrs = ['total_average_per_game'] + [f"{s}_average_per_game" for s in self.stats]
+                return { a: round(arr[index], 2) for index, a in enumerate(attrs) }
             logging.info("career_avg_post - playoffs haven't started yet.")
             return None
         except Exception:
@@ -197,28 +214,41 @@ class Bets:
             return None
     def get_season_rank(self):
         try:
-            df: pd.DataFrame = self.career_stats['season_rankings_regular_season']
-            val = df[df['SEASON_ID'].str.contains(str(self.current_season))][f'RANK_{self.stat}'].values[0]
-            return int(val)
-        except Exception:
-            logging.error("Error getting season_rank")
+            if self.bovada_stat != "total_personal_fouls".upper(): # no personal fouls ranks
+                df: pd.DataFrame = self.career_stats['season_rankings_regular_season']
+                df = df[df['SEASON_ID'].str.contains(str(self.current_season))]
+                rank_cols = [f"RANK_{col}" for col in self.stats]
+                ranks = df[rank_cols]
+                _dict = ranks.to_dict(orient="records")[0]
+                _dict[f"RANK_AVG_{self.bovada_stat}"] = np.mean(ranks.values[0])
+                return _dict
+            return None
+        except Exception as e:
+            logging.error(f"Error getting season_rank: {e}")
             return None
     def get_season_rank_post(self):
         try:
             if self.playoffs_started:
-                df: pd.DataFrame = self.career_stats['season_rankings_post_season']
-                val = df[df['SEASON_ID'].str.contains(str(self.current_season))][f'RANK_{self.stat}'].values[0]
-                return int(val)
+                if self.bovada_stat != "total_personal_fouls".upper(): # no personal fouls ranks
+                    df: pd.DataFrame = self.career_stats['season_rankings_post_season']
+                    df = df[df['SEASON_ID'].str.contains(str(self.current_season))]
+                    rank_cols = [f"RANK_{col}" for col in self.stats]
+                    ranks = df[rank_cols]
+                    _dict = ranks.to_dict(orient="records")[0]
+                    _dict[f"RANK_AVG_{self.bovada_stat}"] = np.mean(ranks.values[0])
+                    return _dict
+                return None
             logging.info("season_rank_post - playoffs haven't started yet.")
             return None
         except Exception:
             logging.error("Error getting season_rank_post")
             return None
     def get_data(self):
-        df: pd.DataFrame = self.all_gamelogs.copy()[['GAME_DATE', 'MATCHUP', self.stat, 'MIN']].head(10)
-        df[f"{self.stat}_PER_MIN"] = df.apply(lambda x: round(x[self.stat]/x['MIN'], 2), axis=1)
+        df: pd.DataFrame = self.all_gamelogs.copy()[['GAME_DATE', 'MATCHUP', 'MIN']+self.stats].head(10)
+        df[f"{self.bovada_stat.upper()}_PER_MIN"] = df.apply(lambda x: round(sum(x[self.stats])/x['MIN'], 2), axis=1)
         # construct response JSON (dict)
         self.res = {
+            'primary_key': self.data['bet']['primary_key'],
             'playoffs_started': self.playoffs_started,
             'hit_last_5_games': self.get_hits_last_n(5),
             'hit_last_10_games': self.get_hits_last_n(10),
@@ -233,19 +263,26 @@ class Bets:
         }
         return self.res
     
+def run(data: list[dict]):
+    responses = []
+    for item in data:
+        if 'id' in item: # not seperator
+            responses.append(Bets(data=item).get_data())
+    # json.dump(responses, open("dummy_bets_info_response.json", "w"), indent=4)
+    return responses
+    
 # if __name__=="__main__":
-#     bets = Bets(
-#         player=INITIAL_VALUES['player'],
-#         bet_type=INITIAL_VALUES['bet_type'],
-#         number_value=INITIAL_VALUES['number_value'],
-#         stat=INITIAL_VALUES['stat'],
-#         save=True
-#     )
-    # bets = Bets(
-    #     player=INITIAL_VALUES['player'],
-    #     bet_type=INITIAL_VALUES['bet_type'],
-    #     number_value=INITIAL_VALUES['number_value'],
-    #     stat=INITIAL_VALUES['stat'],
-    #     load=True
-    # )
-    # json.dump(bets.get_data(), open("dummy_bets_info_response.json", "w"), indent=4)
+#     # bets = Bets(
+#     #     data=INITIAL_VALUES,
+#     #     load=True
+#     # )
+#     # res = bets.get_data()
+#     # json.dump(res, open("dummy_bets_info_response.json", "w"), indent=4)
+#     # bets = Bets(
+#     #     player=INITIAL_VALUES['player'],
+#     #     bet_type=INITIAL_VALUES['bet_type'],
+#     #     number_value=INITIAL_VALUES['number_value'],
+#     #     stat=INITIAL_VALUES['stat'],
+#     #     load=True
+#     # )
+#     run(json.load(open("dummy_bet_slip_submit_response.json", "r")))
