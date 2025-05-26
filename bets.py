@@ -244,8 +244,9 @@ class Bets:
             logging.error("Error getting season_rank_post")
             return None
     def get_data(self):
-        df: pd.DataFrame = self.all_gamelogs.copy()[['GAME_DATE', 'MATCHUP', 'MIN']+self.stats].head(10)
-        df[f"{self.bovada_stat.upper()}_PER_MIN"] = df.apply(lambda x: round(sum(x[self.stats])/x['MIN'], 2), axis=1)
+        df: pd.DataFrame = self.all_gamelogs.copy()[['GAME_DATE', 'MATCHUP']+self.stats].head(10)
+        df = df.sort_values(by=['GAME_DATE'], ascending=True)
+        df[self.bovada_stat.upper()] = df.apply(lambda x: sum(x[self.stats]), axis=1)
         # construct response JSON (dict)
         self.res = {
             'primary_key': self.data['bet']['primary_key'],
@@ -268,10 +269,10 @@ def run(data: list[dict]):
     for item in data:
         if 'id' in item: # not seperator
             responses.append(Bets(data=item).get_data())
-    # json.dump(responses, open("dummy_bets_info_response.json", "w"), indent=4)
     return responses
     
 # if __name__=="__main__":
+#     json.dump(run(json.load(open("dummy_bet_slip_submit_data.json", "r"))), open("dummy_bets_info_response.json", "w"), indent=4)
 #     # bets = Bets(
 #     #     data=INITIAL_VALUES,
 #     #     load=True
