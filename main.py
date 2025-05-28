@@ -5,16 +5,20 @@ import os
 from flask_cors import CORS, cross_origin
 import logging
 import json
+import simplejson
+import boto3
+from boto3.dynamodb.types import TypeDeserializer
 
-import logging_config
-from bets import Bets, run as bets_run
+from logging_config import setup_logging
+from aws import get_dynamo_table
+from bets import Bets
 
 from nba_api.stats.static.players import find_players_by_first_name, find_players_by_last_name, find_players_by_full_name, get_players
 from nba_api.stats.endpoints import playercareerstats, playergamelog
 
 load_dotenv()
 
-logging_config.setup_logging()
+setup_logging()
 
 DEBUG_MODE = os.environ['DEBUG_MODE']=="True"
 
@@ -57,7 +61,11 @@ def get_all_players():
 @app.route(f'/{ROOT_PATH}/post_bet_info', methods=['GET', 'POST'])
 def post_bet_info():
     data = request.get_json()
-    return bets_run(data)
+    return Bets(data).get_data()
+
+@app.route(f'/{ROOT_PATH}/get_table/<table_name>', methods=['GET'])
+def get_tables(table_name: str):
+    return get_dynamo_table(table_name)
 
 if __name__=="__main__":
     app.run(debug=True)

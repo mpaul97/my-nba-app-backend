@@ -6,8 +6,7 @@ def setup_logging():
         level=logging.DEBUG,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            # logging.FileHandler(datetime.now().strftime('log_%y-%m-%d.log')),
-            # logging.FileHandler('log.log', mode='w'),
+            logging.FileHandler('runtime_log.log', mode='w'),
             logging.StreamHandler()
         ],
     )

@@ -1,3 +1,5 @@
+DATETIME_FORMAT = "%d/%m/%Y, %H:%M:%S"
+
 BOVADA_PROP_STAT_MAPPINGS = {
     'total_assists': ['AST'],
     'total_assists-1stquarter': ['AST'],
