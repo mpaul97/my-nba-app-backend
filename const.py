@@ -1,4 +1,4 @@
-DATETIME_FORMAT = "%d/%m/%Y, %H:%M:%S"
+DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 BOVADA_PROP_STAT_MAPPINGS = {
     'total_assists': ['AST'],

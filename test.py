@@ -3,9 +3,13 @@ from dotenv import load_dotenv
 import os
 import json
 import pandas as pd
+import random
 
 from nba_api.stats.static.players import find_players_by_first_name, find_players_by_last_name, find_players_by_full_name, get_players
 from nba_api.stats.endpoints import playercareerstats, playergamelog, scoreboardv2, boxscoreplayertrackv3, boxscoretraditionalv3
+
+from const import DATETIME_FORMAT
+from aws import get_dynamo_table_dataframe
 
 load_dotenv()
 
@@ -69,10 +73,44 @@ def get_boxscores(date):
         print(boxscoretraditionalv3.BoxScoreTraditionalV3(id).get_data_frames()[0])
     return
 
+def make_bet_slip_submit_data():
+    props_df = pd.DataFrame(data=json.load(open("nba_props.json", "r")))
+    props_df = props_df[props_df['stat']!="total_points-1stquarter"]
+    props_df['bovada_datetime_obj'] = props_df['bovada_date'].apply(lambda x: datetime.strptime(x, DATETIME_FORMAT))
+    props_df = props_df.sort_values(by=['bovada_datetime_obj'], ascending=False)
+    top_id = props_df['id'].values[0]
+    props_df: pd.DataFrame = props_df[props_df['id']==top_id].sample(n=4)
+    props_df['player_id'] = props_df['player_id'].astype(int)
+    props_df = props_df.drop(columns=['bovada_datetime_obj'])
+    data = [
+        {
+            "separator": True
+        }
+    ]
+    sample_data = json.loads(props_df.to_json(orient='records'))
+    user_options = ['under', 'over']
+    for index, item in enumerate(sample_data):
+        data.append({
+            'id': index + 1,
+            'bet': item,
+            'user_option': user_options[random.randrange(0, len(user_options))]
+        })
+    json.dump(data, open("dummy_bet_slip_submit_data.json", "w"), indent=4)
+    return
+
+def write_dynamo_props_and_outcomes_json(league: str):
+    for suffix in ['_props', '_outcomes']:
+        table_name: str = f"{league}{suffix}"
+        df = get_dynamo_table_dataframe(table_name)
+        json.dump(json.loads(df.to_json(orient='records')), open(f"{table_name}.json", "w"), indent=4)
+    return
+
 if __name__=="__main__":
     # json.dump(get_all_players(), open("dummy_all_players.json", "w"), indent=4)
     # json.dump(find_players("luka"), open("dummy_players.json", "w"), indent=4)
     # json.dump(get_gamelogs(1629029), open("dummy_player_data.json", "w"), indent=4)
     # get_gamelogs_frame(1629029)
     # print(playergamelog.PlayerGameLog(player_id=1629029, date_to_nullable=datetime.now().date()).get_data_frames())
-    get_boxscores(date=datetime.now()-timedelta(days=1))
+    # get_boxscores(date=datetime.now()-timedelta(days=1))
+    # make_bet_slip_submit_data()
+    write_dynamo_props_and_outcomes_json('mlb')
